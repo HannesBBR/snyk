@@ -543,7 +543,7 @@ test('`test gradle-app` returns correct meta', async (t) => {
   const res = await cli.test('gradle-app');
   const meta = res.slice(res.indexOf('Organisation:')).split('\n');
 
-  t.false(((spyPlugin.args[0] as any)[2] as any).multiDepRoots, '`multiDepRoots` option is not sent');
+  t.false(((spyPlugin.args[0] as any)[2] as any).allSubProjects, '`allSubProjects` option is not sent');
   t.match(meta[0], /Organisation:\s+test-org/, 'organisation displayed');
   t.match(meta[1], /Package manager:\s+gradle/,
     'package manager displayed');
@@ -554,7 +554,7 @@ test('`test gradle-app` returns correct meta', async (t) => {
     'local policy not displayed');
 });
 
-test('`test gradle-app --all-sub-projects` sends `multiDepRoots` argument to plugin', async (t) => {
+test('`test gradle-app --all-sub-projects` sends `allSubProjects` argument to plugin', async (t) => {
   chdirWorkspaces();
   const plugin = {
     async inspect() {
@@ -567,12 +567,12 @@ test('`test gradle-app --all-sub-projects` sends `multiDepRoots` argument to plu
   loadPlugin.withArgs('gradle').returns(plugin);
 
   await cli.test('gradle-app', {
-    'all-sub-projects': true,
+    allSubProjects: true,
   });
-  t.true(((spyPlugin.args[0] as any)[2] as any).multiDepRoots);
+  t.true(((spyPlugin.args[0] as any)[2] as any).allSubProjects);
 });
 
-test('`test gradle-app` plugin fails to return package or depRoots', async (t) => {
+test('`test gradle-app` plugin fails to return package or scannedProjects', async (t) => {
   chdirWorkspaces();
   const plugin = {
     async inspect() {
@@ -589,7 +589,7 @@ test('`test gradle-app` plugin fails to return package or depRoots', async (t) =
     t.fail('expected error');
   } catch (error) {
     t.match(error,
-      /error getting dependencies from gradle plugin: neither 'package' nor 'depRoots' were found/,
+      /error getting dependencies from gradle plugin: neither 'package' nor 'scannedProjects' were found/,
       'error found');
   }
 });
@@ -600,7 +600,7 @@ test('`test gradle-app --all-sub-projects` returns correct multi tree meta', asy
     async inspect() {
       return {
         plugin: {name: 'gradle'},
-        depRoots: [
+        scannedProjects: [
           {
             depTree: {
               name: 'tree0',
@@ -623,8 +623,8 @@ test('`test gradle-app --all-sub-projects` returns correct multi tree meta', asy
   t.teardown(loadPlugin.restore);
   loadPlugin.withArgs('gradle').returns(plugin);
 
-  const res = await cli.test('gradle-app', {'all-sub-projects': true});
-  t.true(((spyPlugin.args[0] as any)[2] as any).multiDepRoots, '`multiDepRoots` option is sent');
+  const res = await cli.test('gradle-app', {allSubProjects: true});
+  t.true(((spyPlugin.args[0] as any)[2] as any).allSubProjects, '`allSubProjects` option is sent');
 
   const tests = res.split('Testing gradle-app...').filter((s) => !!s.trim());
   t.equals(tests.length, 2, 'two projects tested independently');
@@ -708,6 +708,16 @@ test('`test ruby-app` auto-detects Gemfile', async (t) => {
     ['ruby-app@', 'json@2.0.2', 'lynx@0.4.0'].sort(),
     'depGraph looks fine');
   t.equal(req.body.targetFile, 'Gemfile', 'specifies target');
+});
+
+test('`test ruby-app --all-sub-projects` causes an error', async (t) => {
+  chdirWorkspaces();
+  try {
+    await cli.test('ruby-app', { allSubProjects: true });
+    t.fail('Exception expected');
+  } catch (err) {
+    t.match(err.message, 'Plugin rubygems does not support scanning multiple sub-projects');
+  }
 });
 
 test('`test nuget-app-2 auto-detects project.assets.json`', async (t) => {
@@ -976,6 +986,17 @@ test('`test npm-package --file=package-lock.json --dev` sends pkg info', async (
     ['npm-package@1.0.0', 'ms@0.7.1', 'debug@2.2.0', 'object-assign@4.1.1'].sort(),
     'depGraph looks fine');
 });
+
+test('`test npm-package --all-sub-projects` causes an error', async (t) => {
+  chdirWorkspaces();
+  try {
+    await cli.test('npm-package', { allSubProjects: true });
+    t.fail('Exception expected');
+  } catch (err) {
+    t.match(err.message, 'Plugin node.js does not support scanning multiple sub-projects');
+  }
+});
+
 
 test('`test npm-out-of-sync` out of sync fails', async (t) => {
   chdirWorkspaces();
@@ -2426,16 +2447,15 @@ test('`monitor gradle-app --all-sub-projects`', async (t) => {
   t.teardown(loadPlugin.restore);
   loadPlugin.withArgs('gradle').returns(plugin);
 
-  await cli.monitor('gradle-app', {'all-sub-projects': true});
-  t.true(((spyPlugin.args[0] as any)[2] as any).multiDepRoots);
+  await cli.monitor('gradle-app', {allSubProjects: true});
+  t.true(((spyPlugin.args[0] as any)[2] as any).allSubProjects);
 
   const req = server.popRequest();
   t.equal(req.method, 'PUT', 'makes PUT request');
   t.match(req.url, '/monitor/gradle', 'puts at correct url');
   t.same(spyPlugin.getCall(0).args,
     ['gradle-app', 'build.gradle', {
-      'all-sub-projects': true,
-      'multiDepRoots': true,
+      allSubProjects: true,
       'args': null,
     }], 'calls gradle plugin');
 });
@@ -2457,8 +2477,8 @@ test('`monitor gradle-app pip-app --all-sub-projects`', async (t) => {
   loadPlugin.withArgs('gradle').returns(plugin);
   loadPlugin.withArgs('pip').returns(plugin);
 
-  await cli.monitor('gradle-app', 'pip-app', {'all-sub-projects': true});
-  t.true(((spyPlugin.args[0] as any)[2] as any).multiDepRoots);
+  await cli.monitor('gradle-app', 'pip-app', {allSubProjects: true});
+  t.true(((spyPlugin.args[0] as any)[2] as any).allSubProjects);
 
   let req = server.popRequest();
   t.equal(req.method, 'PUT', 'makes PUT request for pip');
@@ -2469,14 +2489,12 @@ test('`monitor gradle-app pip-app --all-sub-projects`', async (t) => {
 
   t.same(spyPlugin.getCall(0).args,
     ['gradle-app', 'build.gradle', {
-      'all-sub-projects': true,
-      'multiDepRoots': true,
+      'allSubProjects': true,
       'args': null,
     }], 'calls plugin for the 1st path');
   t.same(spyPlugin.getCall(1).args,
   ['pip-app', 'requirements.txt', {
-    'all-sub-projects': true,
-    // No multiDepRoots, because only Gradle plugin loader sets it
+    'allSubProjects': true,
     'args': null,
   }], 'calls plugin for the 2nd path');
 });
@@ -2498,7 +2516,7 @@ test('`monitor gradle-app --all-sub-projects --project-name`', async (t) => {
   loadPlugin.withArgs('gradle').returns(plugin);
 
   try {
-    await cli.monitor('gradle-app', {'all-sub-projects': true, 'project-name': 'frumpus'});
+    await cli.monitor('gradle-app', {allSubProjects: true, 'project-name': 'frumpus'});
   } catch (e) {
     t.contains(e, /is currently not compatible/);
   }
