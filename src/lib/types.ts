@@ -66,7 +66,7 @@ export interface ProtectOptions {
   loose: boolean;
 }
 export interface Options {
-  org: string;
+  org: string | null;
   path: string;
   docker?: boolean;
   file?: string;
@@ -107,7 +107,7 @@ export interface MonitorOptions {
 }
 
 export interface MonitorMeta {
-  'method': 'cli';
+  'method': 'cli' | 'wizard';
   'packageManager': SupportedPackageManagers;
   'policy-path': string;
   'project-name': string;
